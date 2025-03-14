@@ -1,0 +1,34 @@
+GET:
+Invoke-RestMethod -Uri "http://localhost:7071/api/HttpTriggers" -Method Get
+
+
+GET BY ID:
+
+Invoke-RestMethod -Uri "http://localhost:7071/api/HttpTriggers?UserId=4" -Method Get
+
+
+POST :
+$body = @{
+    UserName = "lucky"
+    Email = "luck@example.com"
+    PasswordHash = "encryptedpassword"
+} | ConvertTo-Json -Depth 3 -Compress
+
+Invoke-RestMethod -Uri "http://localhost:7071/api/HttpTriggers" -Method Post -Body $body -ContentType "application/json"
+
+
+PUT:
+$body = @{
+    UserId = 4
+    Email = "newemail@example.com"
+} | ConvertTo-Json -Depth 3 -Compress
+
+Invoke-RestMethod -Uri "http://localhost:7071/api/HttpTriggers" -Method Put -Body $body -ContentType "application/json"
+
+
+DELETE:
+$body = @{
+    UserId = 8
+} | ConvertTo-Json -Depth 3 -Compress
+
+Invoke-RestMethod -Uri "http://localhost:7071/api/HttpTriggers" -Method Delete -Body $body -ContentType "application/json"
