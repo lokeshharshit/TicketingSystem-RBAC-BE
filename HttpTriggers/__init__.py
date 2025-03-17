@@ -39,11 +39,12 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
         return func.HttpResponse(f"Error: {str(e)}", status_code=500)
 
 
-# ✅ GET: Fetch All Users OR a Single User by ID
+# ✅ GET: Fetch All Users, User by ID, or User by Username
 def handle_get(req, cursor):
-    user_id = req.params.get("UserId")  # Fetch query parameter
-    
-    if user_id:  # Fetch single user if UserId is provided
+    user_id = req.params.get("UserId")  # Query parameter for UserId
+    username = req.params.get("UserName")  # Query parameter for UserName
+
+    if user_id:  # Fetch user by UserId
         cursor.execute("SELECT UserId, UserName, Email FROM Users WHERE UserId = ?", (user_id,))
         row = cursor.fetchone()
         if row:
@@ -51,14 +52,24 @@ def handle_get(req, cursor):
             return func.HttpResponse(json.dumps(user), mimetype="application/json", status_code=200)
         else:
             return func.HttpResponse("User not found", status_code=404)
-    else:  # Fetch all users if no UserId is provided
+
+    elif username:  # Fetch user by UserName
+        cursor.execute("SELECT UserId, UserName, Email FROM Users WHERE UserName = ?", (username,))
+        row = cursor.fetchone()
+        if row:
+            user = {"UserId": row[0], "UserName": row[1], "Email": row[2]}
+            return func.HttpResponse(json.dumps(user), mimetype="application/json", status_code=200)
+        else:
+            return func.HttpResponse("User not found", status_code=404)
+
+    else:  # Fetch all users if no specific query is provided
         cursor.execute("SELECT UserId, UserName, Email FROM Users")
         rows = cursor.fetchall()
         users = [{"UserId": row[0], "UserName": row[1], "Email": row[2]} for row in rows]
         return func.HttpResponse(json.dumps(users), mimetype="application/json", status_code=200)
 
 
-# ✅ POST: Create a New User (Unchanged)
+# ✅ POST: Create a New User
 def handle_post(req, cursor, conn):
     try:
         req_body = req.get_json()
