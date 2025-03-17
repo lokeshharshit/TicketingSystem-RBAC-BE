@@ -69,22 +69,40 @@ def handle_get(req, cursor):
         return func.HttpResponse(json.dumps(users), mimetype="application/json", status_code=200)
 
 
-# ✅ POST: Create a New User
+# ✅ POST: Handle Login Validation and User Creation
 def handle_post(req, cursor, conn):
     try:
         req_body = req.get_json()
         username = req_body.get("UserName")
-        email = req_body.get("Email")
         password_hash = req_body.get("PasswordHash")  # Pre-encrypted password
 
-        if not username or not email or not password_hash:
-            return func.HttpResponse("Missing fields", status_code=400)
+        if not username or not password_hash:
+            return func.HttpResponse("Missing Username or Password", status_code=400)
+
+        # 🔹 Check if it's a Login Request
+        if req_body.get("Login", False):
+            cursor.execute("SELECT UserId, UserName, Email, PasswordHash FROM Users WHERE UserName = ?", (username,))
+            row = cursor.fetchone()
+            if row:
+                stored_password = row[3]
+                if stored_password == password_hash:  # Basic password comparison
+                    user = {"UserId": row[0], "UserName": row[1], "Email": row[2]}
+                    return func.HttpResponse(json.dumps(user), mimetype="application/json", status_code=200)
+                else:
+                    return func.HttpResponse("Invalid password", status_code=401)
+            else:
+                return func.HttpResponse("User not found", status_code=404)
+
+        # 🔹 If not login, create a new user
+        email = req_body.get("Email")
+        if not email:
+            return func.HttpResponse("Email is required for registration", status_code=400)
 
         cursor.execute("INSERT INTO Users (UserName, Email, PasswordHash) VALUES (?, ?, ?)", 
                        (username, email, password_hash))
         conn.commit()
         return func.HttpResponse(f"User {username} created", status_code=201)
-    
+
     except Exception as e:
         return func.HttpResponse(f"Error: {str(e)}", status_code=500)
 
