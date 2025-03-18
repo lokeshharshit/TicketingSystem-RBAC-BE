@@ -38,7 +38,6 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
         logging.error(str(e))
         return func.HttpResponse(f"Error: {str(e)}", status_code=500)
 
-
 # ✅ GET: Fetch All Users, User by ID, or User by Username
 def handle_get(req, cursor):
     user_id = req.params.get("UserId")  # Query parameter for UserId
@@ -67,7 +66,6 @@ def handle_get(req, cursor):
         rows = cursor.fetchall()
         users = [{"UserId": row[0], "UserName": row[1], "Email": row[2]} for row in rows]
         return func.HttpResponse(json.dumps(users), mimetype="application/json", status_code=200)
-
 
 # ✅ POST: Handle Login Validation and User Creation
 def handle_post(req, cursor, conn):
@@ -106,24 +104,45 @@ def handle_post(req, cursor, conn):
     except Exception as e:
         return func.HttpResponse(f"Error: {str(e)}", status_code=500)
 
-
-# ✅ PUT: Update User Email
+# ✅ PUT: Update UserName, Email, or PasswordHash
 def handle_put(req, cursor, conn):
     try:
         req_body = req.get_json()
         user_id = req_body.get("UserId")
-        email = req_body.get("Email")
 
-        if not user_id or not email:
-            return func.HttpResponse("Missing fields", status_code=400)
+        if not user_id:
+            return func.HttpResponse("Missing UserId", status_code=400)
 
-        cursor.execute("UPDATE Users SET Email = ? WHERE UserId = ?", (email, user_id))
+        # Prepare the update statement dynamically
+        update_fields = []
+        params = []
+
+        if "UserName" in req_body:
+            update_fields.append("UserName = ?")
+            params.append(req_body["UserName"])
+
+        if "Email" in req_body:
+            update_fields.append("Email = ?")
+            params.append(req_body["Email"])
+
+        if "PasswordHash" in req_body:
+            update_fields.append("PasswordHash = ?")
+            params.append(req_body["PasswordHash"])
+
+        if not update_fields:
+            return func.HttpResponse("No valid fields provided for update", status_code=400)
+
+        # Construct the final update query
+        update_query = f"UPDATE Users SET {', '.join(update_fields)} WHERE UserId = ?"
+        params.append(user_id)
+
+        cursor.execute(update_query, params)
         conn.commit()
-        return func.HttpResponse(f"User {user_id} email updated", status_code=200)
+
+        return func.HttpResponse(f"User {user_id} updated successfully", status_code=200)
 
     except Exception as e:
         return func.HttpResponse(f"Error: {str(e)}", status_code=500)
-
 
 # ✅ DELETE: Remove a User
 def handle_delete(req, cursor, conn):
