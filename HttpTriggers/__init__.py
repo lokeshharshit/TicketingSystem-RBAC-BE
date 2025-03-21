@@ -40,80 +40,76 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
 
 # ✅ GET: Fetch All Users, User by ID, or User by Username
 def handle_get(req, cursor):
-    user_id = req.params.get("UserId")  # Query parameter for UserId
-    username = req.params.get("UserName")  # Query parameter for UserName
+    user_id = req.params.get("UserId")
+    username = req.params.get("UserName")
 
-    if user_id:  # Fetch user by UserId
+    if user_id:
         cursor.execute("SELECT UserId, UserName, Email FROM Users WHERE UserId = ?", (user_id,))
         row = cursor.fetchone()
         if row:
-            user = {"UserId": row[0], "UserName": row[1], "Email": row[2]}
-            return func.HttpResponse(json.dumps(user), mimetype="application/json", status_code=200)
-        else:
-            return func.HttpResponse("User not found", status_code=404)
+            return func.HttpResponse(json.dumps({"UserId": row[0], "UserName": row[1], "Email": row[2]}), 
+                                     mimetype="application/json", status_code=200)
+        return func.HttpResponse(json.dumps({"message": "User not found"}), status_code=404)
 
-    elif username:  # Fetch user by UserName
+    elif username:
         cursor.execute("SELECT UserId, UserName, Email FROM Users WHERE UserName = ?", (username,))
         row = cursor.fetchone()
         if row:
-            user = {"UserId": row[0], "UserName": row[1], "Email": row[2]}
-            return func.HttpResponse(json.dumps(user), mimetype="application/json", status_code=200)
-        else:
-            return func.HttpResponse("User not found", status_code=404)
+            return func.HttpResponse(json.dumps({"UserId": row[0], "UserName": row[1], "Email": row[2]}), 
+                                     mimetype="application/json", status_code=200)
+        return func.HttpResponse(json.dumps({"message": "User not found"}), status_code=404)
 
-    else:  # Fetch all users if no specific query is provided
-        cursor.execute("SELECT UserId, UserName, Email FROM Users")
-        rows = cursor.fetchall()
-        users = [{"UserId": row[0], "UserName": row[1], "Email": row[2]} for row in rows]
-        return func.HttpResponse(json.dumps(users), mimetype="application/json", status_code=200)
+    cursor.execute("SELECT UserId, UserName, Email FROM Users")
+    users = [{"UserId": row[0], "UserName": row[1], "Email": row[2]} for row in cursor.fetchall()]
+    return func.HttpResponse(json.dumps(users), mimetype="application/json", status_code=200)
 
-# ✅ POST: Handle Login Validation and User Creation
+# ✅ POST: Handle Login & User Registration
 def handle_post(req, cursor, conn):
     try:
         req_body = req.get_json()
         username = req_body.get("UserName")
-        password_hash = req_body.get("PasswordHash")  # Pre-encrypted password
+        password_hash = req_body.get("PasswordHash")
 
         if not username or not password_hash:
-            return func.HttpResponse("Missing Username or Password", status_code=400)
+            return func.HttpResponse(json.dumps({"message": "Missing Username or Password"}), status_code=400)
 
-        # 🔹 Check if it's a Login Request
+        # 🔹 Handle Login
         if req_body.get("Login", False):
             cursor.execute("SELECT UserId, UserName, Email, PasswordHash FROM Users WHERE UserName = ?", (username,))
             row = cursor.fetchone()
-            if row:
-                stored_password = row[3]
-                if stored_password == password_hash:  # Basic password comparison
-                    user = {"UserId": row[0], "UserName": row[1], "Email": row[2]}
-                    return func.HttpResponse(json.dumps(user), mimetype="application/json", status_code=200)
-                else:
-                    return func.HttpResponse("Invalid password", status_code=401)
-            else:
-                return func.HttpResponse("User not found", status_code=404)
 
-        # 🔹 If not login, create a new user
+            if not row:
+                return func.HttpResponse(json.dumps({"message": "User Not Found"}), status_code=404)
+
+            stored_password = row[3]
+            if stored_password != password_hash:
+                return func.HttpResponse(json.dumps({"message": "Invalid Password"}), status_code=401)
+
+            return func.HttpResponse(json.dumps({"UserId": row[0], "UserName": row[1], "Email": row[2]}), 
+                                     mimetype="application/json", status_code=200)
+
+        # 🔹 Handle User Registration
         email = req_body.get("Email")
         if not email:
-            return func.HttpResponse("Email is required for registration", status_code=400)
+            return func.HttpResponse(json.dumps({"message": "Email is required for registration"}), status_code=400)
 
         cursor.execute("INSERT INTO Users (UserName, Email, PasswordHash) VALUES (?, ?, ?)", 
                        (username, email, password_hash))
         conn.commit()
-        return func.HttpResponse(f"User {username} created", status_code=201)
+        return func.HttpResponse(json.dumps({"message": f"User {username} created"}), status_code=201)
 
     except Exception as e:
-        return func.HttpResponse(f"Error: {str(e)}", status_code=500)
+        return func.HttpResponse(json.dumps({"message": f"Error: {str(e)}"}), status_code=500)
 
-# ✅ PUT: Update UserName, Email, or PasswordHash
+# ✅ PUT: Update User Details
 def handle_put(req, cursor, conn):
     try:
         req_body = req.get_json()
         user_id = req_body.get("UserId")
 
         if not user_id:
-            return func.HttpResponse("Missing UserId", status_code=400)
+            return func.HttpResponse(json.dumps({"message": "Missing UserId"}), status_code=400)
 
-        # Prepare the update statement dynamically
         update_fields = []
         params = []
 
@@ -130,19 +126,17 @@ def handle_put(req, cursor, conn):
             params.append(req_body["PasswordHash"])
 
         if not update_fields:
-            return func.HttpResponse("No valid fields provided for update", status_code=400)
+            return func.HttpResponse(json.dumps({"message": "No valid fields provided for update"}), status_code=400)
 
-        # Construct the final update query
         update_query = f"UPDATE Users SET {', '.join(update_fields)} WHERE UserId = ?"
         params.append(user_id)
 
         cursor.execute(update_query, params)
         conn.commit()
-
-        return func.HttpResponse(f"User {user_id} updated successfully", status_code=200)
+        return func.HttpResponse(json.dumps({"message": f"User {user_id} updated successfully"}), status_code=200)
 
     except Exception as e:
-        return func.HttpResponse(f"Error: {str(e)}", status_code=500)
+        return func.HttpResponse(json.dumps({"message": f"Error: {str(e)}"}), status_code=500)
 
 # ✅ DELETE: Remove a User
 def handle_delete(req, cursor, conn):
@@ -151,11 +145,11 @@ def handle_delete(req, cursor, conn):
         user_id = req_body.get("UserId")
 
         if not user_id:
-            return func.HttpResponse("Missing UserId", status_code=400)
+            return func.HttpResponse(json.dumps({"message": "Missing UserId"}), status_code=400)
 
         cursor.execute("DELETE FROM Users WHERE UserId = ?", (user_id,))
         conn.commit()
-        return func.HttpResponse(f"User {user_id} deleted", status_code=200)
+        return func.HttpResponse(json.dumps({"message": f"User {user_id} deleted"}), status_code=200)
 
     except Exception as e:
-        return func.HttpResponse(f"Error: {str(e)}", status_code=500)
+        return func.HttpResponse(json.dumps({"message": f"Error: {str(e)}"}), status_code=500)
