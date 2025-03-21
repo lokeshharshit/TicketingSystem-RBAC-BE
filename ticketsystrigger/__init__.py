@@ -123,8 +123,8 @@ def handle_put(req, cursor, conn):
             conn.commit()
             return func.HttpResponse("Comments updated successfully", status_code=200)
 
-        # Case 4: Update both Comments and Description
-        elif comments and description and not (admin_id or status or attachment):
+        # Case 4: Update both Description and Comments
+        elif description and comments and not (admin_id or status or attachment):
             cursor.execute("UPDATE Tickets SET Description = ?, Comments = ? WHERE TicketId = ?", (description, comments, ticket_id))
             conn.commit()
             return func.HttpResponse("Description and Comments updated successfully", status_code=200)
@@ -156,6 +156,7 @@ def handle_put(req, cursor, conn):
 
     except Exception as e:
         return func.HttpResponse(f"Error: {str(e)}", status_code=500)
+
 
 # DELETE: Remove a Ticket
 def handle_delete(req, cursor, conn):
