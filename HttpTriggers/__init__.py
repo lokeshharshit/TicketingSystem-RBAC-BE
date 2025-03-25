@@ -44,23 +44,37 @@ def handle_get(req, cursor):
     username = req.params.get("UserName")
 
     if user_id:
-        cursor.execute("SELECT UserId, UserName, Email FROM Users WHERE UserId = ?", (user_id,))
-        row = cursor.fetchone()
-        if row:
-            return func.HttpResponse(json.dumps({"UserId": row[0], "UserName": row[1], "Email": row[2]}), 
-                                     mimetype="application/json", status_code=200)
+        cursor.execute("""
+            SELECT u.UserId, u.UserName, u.Email, ur.RoleId 
+            FROM Users u
+            LEFT JOIN UserRoles ur ON u.UserId = ur.UserId
+            WHERE u.UserId = ?
+        """, (user_id,))
+        rows = cursor.fetchall()
+        if rows:
+            user_data = [{"UserId": row[0], "UserName": row[1], "Email": row[2], "RoleId": row[3]} for row in rows]
+            return func.HttpResponse(json.dumps(user_data), mimetype="application/json", status_code=200)
         return func.HttpResponse(json.dumps({"message": "User not found"}), status_code=404)
 
     elif username:
-        cursor.execute("SELECT UserId, UserName, Email FROM Users WHERE UserName = ?", (username,))
-        row = cursor.fetchone()
-        if row:
-            return func.HttpResponse(json.dumps({"UserId": row[0], "UserName": row[1], "Email": row[2]}), 
-                                     mimetype="application/json", status_code=200)
+        cursor.execute("""
+            SELECT u.UserId, u.UserName, u.Email, ur.RoleId 
+            FROM Users u
+            LEFT JOIN UserRoles ur ON u.UserId = ur.UserId
+            WHERE u.UserName = ?
+        """, (username,))
+        rows = cursor.fetchall()
+        if rows:
+            user_data = [{"UserId": row[0], "UserName": row[1], "Email": row[2], "RoleId": row[3]} for row in rows]
+            return func.HttpResponse(json.dumps(user_data), mimetype="application/json", status_code=200)
         return func.HttpResponse(json.dumps({"message": "User not found"}), status_code=404)
 
-    cursor.execute("SELECT UserId, UserName, Email FROM Users")
-    users = [{"UserId": row[0], "UserName": row[1], "Email": row[2]} for row in cursor.fetchall()]
+    cursor.execute("""
+        SELECT u.UserId, u.UserName, u.Email, ur.RoleId 
+        FROM Users u
+        LEFT JOIN UserRoles ur ON u.UserId = ur.UserId
+    """)
+    users = [{"UserId": row[0], "UserName": row[1], "Email": row[2], "RoleId": row[3]} for row in cursor.fetchall()]
     return func.HttpResponse(json.dumps(users), mimetype="application/json", status_code=200)
 
 # ✅ POST: Handle Login & User Registration
@@ -73,7 +87,7 @@ def handle_post(req, cursor, conn):
         if not username or not password_hash:
             return func.HttpResponse(json.dumps({"message": "Missing Username or Password"}), status_code=400)
 
-        # 🔹 Handle Login
+        # 🔹 Handle Login (Modified to return RoleId)
         if req_body.get("Login", False):
             cursor.execute("SELECT UserId, UserName, Email, PasswordHash FROM Users WHERE UserName = ?", (username,))
             row = cursor.fetchone()
@@ -85,10 +99,21 @@ def handle_post(req, cursor, conn):
             if stored_password != password_hash:
                 return func.HttpResponse(json.dumps({"message": "Invalid Password"}), status_code=401)
 
-            return func.HttpResponse(json.dumps({"UserId": row[0], "UserName": row[1], "Email": row[2]}), 
-                                     mimetype="application/json", status_code=200)
+            # ✅ Fetch RoleId separately and add to login response
+            cursor.execute("SELECT RoleId FROM UserRoles WHERE UserId = ?", (row[0],))
+            role_row = cursor.fetchone()
+            role_id = role_row[0] if role_row else None  
 
-        # 🔹 Handle User Registration
+            user_data = {
+                "UserId": row[0],
+                "UserName": row[1],
+                "Email": row[2],
+                "RoleId": role_id  # ✅ RoleId is now included in the response
+            }
+
+            return func.HttpResponse(json.dumps(user_data), mimetype="application/json", status_code=200)
+
+        # 🔹 Handle User Registration (Original logic unchanged)
         email = req_body.get("Email")
         if not email:
             return func.HttpResponse(json.dumps({"message": "Email is required for registration"}), status_code=400)
