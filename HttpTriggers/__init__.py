@@ -110,7 +110,6 @@ def handle_post(req, cursor, conn):
         logging.error(f"POST Error: {str(e)}")
         return func.HttpResponse(json.dumps({"message": f"Error: {str(e)}"}), status_code=500)
 
-# ✅ PUT: Update User Details & RoleId
 def handle_put(req, cursor, conn):
     try:
         req_body = req.get_json()
@@ -134,13 +133,21 @@ def handle_put(req, cursor, conn):
             update_fields.append("PasswordHash = ?")
             params.append(req_body["PasswordHash"])
 
-        if not update_fields:
-            return func.HttpResponse(json.dumps({"message": "No valid fields provided for update"}), status_code=400)
+        if update_fields:
+            update_query = f"UPDATE Users SET {', '.join(update_fields)} WHERE UserId = ?"
+            params.append(user_id)
+            cursor.execute(update_query, params)
 
-        update_query = f"UPDATE Users SET {', '.join(update_fields)} WHERE UserId = ?"
-        params.append(user_id)
+        if "RoleId" in req_body:
+            role_id = req_body["RoleId"]
+            cursor.execute("SELECT COUNT(*) FROM UserRoles WHERE UserId = ?", (user_id,))
+            role_exists = cursor.fetchone()[0] > 0
 
-        cursor.execute(update_query, params)
+            if role_exists:
+                cursor.execute("UPDATE UserRoles SET RoleId = ? WHERE UserId = ?", (role_id, user_id))
+            else:
+                cursor.execute("INSERT INTO UserRoles (UserId, RoleId) VALUES (?, ?)", (user_id, role_id))
+
         conn.commit()
         return func.HttpResponse(json.dumps({"message": f"User {user_id} updated successfully"}), status_code=200)
 
