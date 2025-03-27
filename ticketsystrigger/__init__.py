@@ -85,76 +85,63 @@ def handle_post(req, cursor, conn):
     except Exception as e:
         return func.HttpResponse(f"Error: {str(e)}", status_code=500)
 
-# PUT: Update Ticket (Various Cases)
+# PUT: Update Ticket (Dynamic Update for Various Fields)
 def handle_put(req, cursor, conn):
     try:
         req_body = req.get_json()
-        ticket_id = req_body.get("TicketId")  # TicketId (cannot be updated)
-        user_id = req_body.get("UserId")  # UserId (cannot be updated)
-        admin_id = req_body.get("AdminId")  # AdminId
-        description = req_body.get("Description")  # Description
-        comments = req_body.get("Comments")  # Comments
-        status = req_body.get("Status")  # Status
-        attachment = req_body.get("Attachment")  # Attachment
+        ticket_id = req_body.get("TicketId")
 
         # Ensure TicketId is provided
         if not ticket_id:
             return func.HttpResponse("Missing required field: TicketId", status_code=400)
 
-        # Ensure UserId is not included (as it cannot be updated)
-        if user_id:
-            return func.HttpResponse("UserId cannot be updated", status_code=400)
+        # Prepare dynamic fields for the UPDATE query
+        update_fields = []
+        update_values = []
 
-        # Case 1: Update only AdminId
-        if admin_id and not (description or comments or status or attachment):
-            cursor.execute("UPDATE Tickets SET AdminId = ? WHERE TicketId = ?", (admin_id, ticket_id))
-            conn.commit()
-            return func.HttpResponse("AdminId updated successfully", status_code=200)
+        # Dynamically add fields to be updated
+        if "AdminId" in req_body:
+            update_fields.append("AdminId = ?")
+            update_values.append(req_body["AdminId"])
 
-        # Case 2: Update only Description
-        elif description and not (admin_id or comments or status or attachment):
-            cursor.execute("UPDATE Tickets SET Description = ? WHERE TicketId = ?", (description, ticket_id))
-            conn.commit()
-            return func.HttpResponse("Description updated successfully", status_code=200)
+        if "Description" in req_body:
+            update_fields.append("Description = ?")
+            update_values.append(req_body["Description"])
 
-        # Case 3: Update only Comments
-        elif comments and not (admin_id or description or status or attachment):
-            cursor.execute("UPDATE Tickets SET Comments = ? WHERE TicketId = ?", (comments, ticket_id))
-            conn.commit()
-            return func.HttpResponse("Comments updated successfully", status_code=200)
+        if "Comments" in req_body:
+            update_fields.append("Comments = ?")
+            update_values.append(req_body["Comments"])
 
-        # Case 4: Update both Description and Comments
-        elif description and comments and not (admin_id or status or attachment):
-            cursor.execute("UPDATE Tickets SET Description = ?, Comments = ? WHERE TicketId = ?", (description, comments, ticket_id))
-            conn.commit()
-            return func.HttpResponse("Description and Comments updated successfully", status_code=200)
+        if "Status" in req_body:
+            update_fields.append("Status = ?")
+            update_values.append(req_body["Status"])
 
-        # Case 5: Update Status only
-        elif status and not (admin_id or description or comments or attachment):
-            cursor.execute("UPDATE Tickets SET Status = ? WHERE TicketId = ?", (status, ticket_id))
-            conn.commit()
-            return func.HttpResponse("Status updated successfully", status_code=200)
+        if "Attachment" in req_body:
+            update_fields.append("Attachment = ?")
+            update_values.append(req_body["Attachment"])
 
-        # Case 6: Update Attachment only
-        elif attachment and not (admin_id or description or comments or status):
-            cursor.execute("UPDATE Tickets SET Attachment = ? WHERE TicketId = ?", (attachment, ticket_id))
-            conn.commit()
-            return func.HttpResponse("Attachment updated successfully", status_code=200)
+        # If no fields were provided for update, return error
+        if not update_fields:
+            return func.HttpResponse("No fields to update", status_code=400)
 
-        # Case 7: Update all except TicketId and UserId
-        elif admin_id or description or comments or status or attachment:
-            cursor.execute("""
-                UPDATE Tickets
-                SET AdminId = ?, Description = ?, Comments = ?, Status = ?, Attachment = ?
-                WHERE TicketId = ?
-            """, (admin_id, description, comments, status, attachment, ticket_id))
-            conn.commit()
-            return func.HttpResponse("Ticket updated successfully", status_code=200)
+        # Add TicketId at the end of the values (used in the WHERE clause)
+        update_values.append(ticket_id)
 
-        else:
-            return func.HttpResponse("No valid fields to update", status_code=400)
+        # Construct the dynamic UPDATE query
+        update_query = f"""
+            UPDATE Tickets
+            SET {', '.join(update_fields)}
+            WHERE TicketId = ?
+        """
 
+        # Execute the query with dynamic fields
+        cursor.execute(update_query, tuple(update_values))
+        conn.commit()
+
+        return func.HttpResponse("Ticket updated successfully", status_code=200)
+    
     except Exception as e:
+        logging.error(str(e))
         return func.HttpResponse(f"Error: {str(e)}", status_code=500)
 
 
