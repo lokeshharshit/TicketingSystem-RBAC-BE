@@ -44,24 +44,24 @@ def handle_get(req, cursor):
     user_id = req.params.get("UserId")
 
     if ticket_id:
-        cursor.execute("SELECT * FROM Tickets WHERE TicketId = ?", (ticket_id,))
+        cursor.execute("SELECT t.*, u.UserName FROM Tickets t JOIN Users u ON t.UserId = u.UserId WHERE t.TicketId = ?", (ticket_id,))
         row = cursor.fetchone()
         if row:
-            ticket = {"TicketId": row[0], "UserId": row[1], "AdminId": row[2], "Description": row[3], "Status": row[4], "Attachment": row[5], "Comments": row[6]}
+            ticket = {"TicketId": row[0], "UserId": row[1], "UserName": row[7], "AdminId": row[2], "Description": row[3], "Status": row[4], "Attachment": row[5], "Comments": row[6]}
             return func.HttpResponse(json.dumps(ticket), mimetype="application/json", status_code=200)
         else:
             return func.HttpResponse("Ticket not found", status_code=404)
 
     elif user_id:
-        cursor.execute("SELECT * FROM Tickets WHERE UserId = ?", (user_id,))
+        cursor.execute("SELECT t.*, u.UserName FROM Tickets t JOIN Users u ON t.UserId = u.UserId WHERE t.UserId = ?", (user_id,))
         rows = cursor.fetchall()
-        tickets = [{"TicketId": row[0], "UserId": row[1], "AdminId": row[2], "Description": row[3], "Status": row[4], "Attachment": row[5], "Comments": row[6]} for row in rows]
+        tickets = [{"TicketId": row[0], "UserId": row[1], "UserName": row[7], "AdminId": row[2], "Description": row[3], "Status": row[4], "Attachment": row[5], "Comments": row[6]} for row in rows]
         return func.HttpResponse(json.dumps(tickets), mimetype="application/json", status_code=200)
     
     else:
-        cursor.execute("SELECT * FROM Tickets")
+        cursor.execute("SELECT t.*, u.UserName FROM Tickets t JOIN Users u ON t.UserId = u.UserId")
         rows = cursor.fetchall()
-        tickets = [{"TicketId": row[0], "UserId": row[1], "AdminId": row[2], "Description": row[3], "Status": row[4], "Attachment": row[5], "Comments": row[6]} for row in rows]
+        tickets = [{"TicketId": row[0], "UserId": row[1], "UserName": row[7], "AdminId": row[2], "Description": row[3], "Status": row[4], "Attachment": row[5], "Comments": row[6]} for row in rows]
         return func.HttpResponse(json.dumps(tickets), mimetype="application/json", status_code=200)
 
 # POST: Create a New Ticket
